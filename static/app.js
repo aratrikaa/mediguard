@@ -332,7 +332,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     <div class="alt-details">
                         <div class="alt-stat">
                             <span>Approx Price</span>
-                            <strong>${alt.price || '$2 - $5'}</strong>
+                            <strong>${alt.price || '₹20 - ₹50'}</strong>
                         </div>
                         <div class="alt-stat">
                             <span>Bioequivalence</span>

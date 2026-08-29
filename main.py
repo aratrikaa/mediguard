@@ -110,8 +110,41 @@ def calculate_risk(interactions: list) -> str:
         return "medium"
     return "low"
 
+import re
+
+def ensure_inr_pricing(data: dict) -> dict:
+    """Ensures all alternative prices are formatted in Indian Rupees (₹)."""
+    alts = data.get("alternatives", [])
+    for alt in alts:
+        price = str(alt.get("price", "")).strip()
+        if not price or price.upper() == "N/A":
+            alt["price"] = "₹15 - ₹45"
+            continue
+        
+        if "$" in price or "USD" in price.upper():
+            nums = re.findall(r"\d+(?:\.\d+)?", price)
+            if nums:
+                try:
+                    floats = [float(n) for n in nums]
+                    if all(f < 25 for f in floats):
+                        inr_vals = [max(10, int(round(f * 35))) for f in floats]
+                        if len(inr_vals) >= 2:
+                            alt["price"] = f"₹{inr_vals[0]} - ₹{inr_vals[1]}"
+                        else:
+                            alt["price"] = f"₹{inr_vals[0]}"
+                    else:
+                        alt["price"] = price.replace("$", "₹")
+                except Exception:
+                    alt["price"] = "₹20 - ₹50"
+            else:
+                alt["price"] = "₹20 - ₹50"
+        elif "₹" not in price and "INR" not in price.upper() and "RS" not in price.upper():
+            alt["price"] = f"₹{price}"
+    return data
+
 def save_medication_to_db(data: dict, tokens: list = None) -> dict:
     """Saves medication analysis data to local SQLite database."""
+    data = ensure_inr_pricing(data)
     conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     
@@ -147,6 +180,36 @@ def save_medication_to_db(data: dict, tokens: list = None) -> dict:
     data["extractedTokens"] = tokens or []
     return data
 
+def seed_db():
+    dataset_file = "medications_dataset.json"
+    if not os.path.exists(dataset_file):
+        print(f"Dataset file {dataset_file} not found. Skipping seeding.")
+        return
+    
+    try:
+        conn = sqlite3.connect(DB_FILE)
+        cursor = conn.cursor()
+        
+        # Seed each medication if not already present by name
+        seeded_count = 0
+        with open(dataset_file, "r", encoding="utf-8") as f:
+            meds = json.load(f)
+        for med in meds:
+            name = med.get("name", "Unknown Medicine")
+            cursor.execute("SELECT COUNT(*) FROM medications WHERE name = ?", (name,))
+            if cursor.fetchone()[0] == 0:
+                # Save to database (save_medication_to_db opens its own connection and inserts)
+                save_medication_to_db(med, [name])
+                seeded_count += 1
+        conn.close()
+        if seeded_count > 0:
+            print(f"Successfully seeded {seeded_count} new medications.")
+    except Exception as e:
+        print("Error seeding database:", e)
+
+seed_db()
+
+
 def preprocess_image_for_ocr(image_np: np.ndarray) -> list:
     """Runs OCR on both original and contrast-enhanced variations to maximize token detection."""
     tokens = []
@@ -179,6 +242,53 @@ def preprocess_image_for_ocr(image_np: np.ndarray) -> list:
 @app.post("/api/search")
 async def search_medication(req: SearchRequest):
     try:
+        query_str = req.query.strip().lower()
+        
+        # 1. Try to find the medication in the local database first
+        conn = sqlite3.connect(DB_FILE)
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Match by name (case-insensitive substring) or active ingredients or extracted tokens
+        cursor.execute("""
+            SELECT * FROM medications 
+            WHERE LOWER(name) LIKE ? 
+               OR LOWER(active_ingredients) LIKE ? 
+               OR LOWER(extracted_tokens) LIKE ?
+            LIMIT 1
+        """, (f"%{query_str}%", f"%{query_str}%", f"%{query_str}%"))
+        
+        row = cursor.fetchone()
+        
+        if row:
+            print(f"Found match for query '{req.query}' in local database: {row['name']}")
+            extracted_tokens = []
+            if "extracted_tokens" in row.keys() and row["extracted_tokens"]:
+                try:
+                    extracted_tokens = json.loads(row["extracted_tokens"])
+                except Exception:
+                    pass
+            
+            data = {
+                "id": row["id"],
+                "name": row["name"],
+                "description": row["description"],
+                "activeIngredients": json.loads(row["active_ingredients"]),
+                "inactiveIngredients": json.loads(row["inactive_ingredients"]),
+                "alternatives": json.loads(row["alternatives"]),
+                "interactions": json.loads(row["interactions"]),
+                "sideEffects": json.loads(row["side_effects"]),
+                "scan_date": row["scan_date"],
+                "risk_level": row["risk_level"],
+                "extractedTokens": extracted_tokens
+            }
+            conn.close()
+            return data
+            
+        conn.close()
+        print(f"Query '{req.query}' not found in local database. Fetching from Groq LLM API...")
+        
+        # 2. Fall back to Groq LLM if not found locally
         prompt = f"""
         You are a clinical pharmacist AI. Analyze the medication query '{req.query}'.
         Identify the exact active chemical molecule (salt), dosages, inactive excipients, brand/generic substitutes, drug interactions, and side effects.
@@ -192,7 +302,7 @@ async def search_medication(req: SearchRequest):
             ],
             "inactiveIngredients": ["Excipient 1", "Excipient 2", "Excipient 3"],
             "alternatives": [
-                {{"name": "Substitute Name", "type": "generic or branded", "price": "Price range (e.g. $2 - $4)", "availability": "High", "savings": "Percentage savings e.g. 45%", "similarityScore": 95}}
+                {{"name": "Substitute Name", "type": "generic or branded", "price": "Price range in Rupees (e.g. ₹20 - ₹45)", "availability": "High", "savings": "Percentage savings e.g. 45%", "similarityScore": 95}}
             ],
             "interactions": [
                 {{"substance": "Substance / Drug Name", "severity": "HIGH or MEDIUM or LOW", "description": "Specific clinical risk"}}
@@ -201,6 +311,10 @@ async def search_medication(req: SearchRequest):
                 {{"name": "Side effect name", "frequency": "common or uncommon or rare"}}
             ]
         }}
+
+        CRITICAL REQUIREMENT FOR PRICING:
+        - Output all alternative prices in Indian Rupees using the '₹' symbol (e.g. '₹15 - ₹30' or '₹40 - ₹80').
+        - NEVER use US Dollar signs ($).
 
         Do NOT return empty fields. Return ONLY the raw JSON object.
         """
@@ -260,7 +374,7 @@ async def scan_medication(req: ScanRequest):
             ],
             "inactiveIngredients": ["Inactive Excipient 1", "Binder 2", "Coating 3"],
             "alternatives": [
-                {{"name": "Alternative Name", "type": "generic or branded", "price": "$2 - $4", "availability": "High", "savings": "50%", "similarityScore": 95}}
+                {{"name": "Alternative Name", "type": "generic or branded", "price": "₹20 - ₹50", "availability": "High", "savings": "50%", "similarityScore": 95}}
             ],
             "interactions": [
                 {{"substance": "Drug / Substance", "severity": "HIGH or MEDIUM or LOW", "description": "Specific danger / precaution"}}
@@ -269,6 +383,10 @@ async def scan_medication(req: ScanRequest):
                 {{"name": "Side effect name", "frequency": "common or uncommon or rare"}}
             ]
         }}
+
+        CRITICAL REQUIREMENT FOR PRICING:
+        - Output all alternative prices in Indian Rupees using the '₹' symbol (e.g. '₹20 - ₹40' or '₹50 - ₹120').
+        - NEVER use US Dollar signs ($).
 
         Do NOT return empty fields. Return ONLY the raw JSON object.
         """

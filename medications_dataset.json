@@ -1,0 +1,112 @@
+[
+  {
+    "name": "Paracetamol 500mg",
+    "description": "A widely used over-the-counter analgesic (pain reliever) and antipyretic (fever reducer). It is commonly used for mild to moderate pain relief and fever management.",
+    "activeIngredients": [
+      {"name": "Paracetamol", "amount": "500mg"}
+    ],
+    "inactiveIngredients": ["Starch", "Povidone", "Magnesium Stearate", "Sodium Starch Glycolate"],
+    "alternatives": [
+      {"name": "Crocin Advance 500mg", "type": "branded", "price": "₹15 - ₹20", "availability": "High", "savings": "10%", "similarityScore": 100},
+      {"name": "Calpol 500mg", "type": "branded", "price": "₹12 - ₹15", "availability": "High", "savings": "25%", "similarityScore": 100},
+      {"name": "Dolo 500mg", "type": "branded", "price": "₹14 - ₹18", "availability": "High", "savings": "15%", "similarityScore": 100},
+      {"name": "Paracetamol Generic 500mg", "type": "generic", "price": "₹5 - ₹8", "availability": "High", "savings": "65%", "similarityScore": 100}
+    ],
+    "interactions": [
+      {"substance": "Alcohol", "severity": "HIGH", "description": "Increased risk of severe liver damage/toxicity when combined."},
+      {"substance": "Warfarin", "severity": "MEDIUM", "description": "Prolonged regular use of paracetamol may enhance the anticoagulant effect of warfarin."}
+    ],
+    "sideEffects": [
+      {"name": "Nausea", "frequency": "uncommon"},
+      {"name": "Allergic skin rash", "frequency": "rare"},
+      {"name": "Liver damage (in overdose)", "frequency": "rare"}
+    ]
+  },
+  {
+    "name": "Cetirizine 10mg",
+    "description": "A second-generation antihistamine used to treat allergy symptoms such as watery eyes, runny nose, itching eyes/nose, sneezing, hives, and itching.",
+    "activeIngredients": [
+      {"name": "Cetirizine Hydrochloride", "amount": "10mg"}
+    ],
+    "inactiveIngredients": ["Lactose Monohydrate", "Microcrystalline Cellulose", "Colloidal Silicon Dioxide", "Magnesium Stearate"],
+    "alternatives": [
+      {"name": "Alerid 10mg", "type": "branded", "price": "₹18 - ₹25", "availability": "High", "savings": "20%", "similarityScore": 100},
+      {"name": "Cetrizen 10mg", "type": "branded", "price": "₹15 - ₹20", "availability": "High", "savings": "35%", "similarityScore": 100},
+      {"name": "Cetirizine Generic 10mg", "type": "generic", "price": "₹6 - ₹10", "availability": "High", "savings": "70%", "similarityScore": 100}
+    ],
+    "interactions": [
+      {"substance": "Alcohol / Sedatives", "severity": "MEDIUM", "description": "May increase drowsiness and impair motor skills and alertness."}
+    ],
+    "sideEffects": [
+      {"name": "Drowsiness / Sleepiness", "frequency": "common"},
+      {"name": "Dry Mouth", "frequency": "common"},
+      {"name": "Dizziness", "frequency": "uncommon"}
+    ]
+  },
+  {
+    "name": "Amoxicillin 500mg",
+    "description": "A moderate-spectrum, bactericidal, beta-lactam antibiotic used to treat bacterial infections such as pneumonia, strep throat, UTI, and skin infections.",
+    "activeIngredients": [
+      {"name": "Amoxicillin Trihydrate", "amount": "500mg"}
+    ],
+    "inactiveIngredients": ["Microcrystalline Cellulose", "Sodium Starch Glycolate", "Magnesium Stearate"],
+    "alternatives": [
+      {"name": "Novamox 500mg", "type": "branded", "price": "₹60 - ₹80", "availability": "High", "savings": "15%", "similarityScore": 100},
+      {"name": "Almox 500mg", "type": "branded", "price": "₹55 - ₹70", "availability": "High", "savings": "25%", "similarityScore": 100},
+      {"name": "Amoxicillin Generic 500mg", "type": "generic", "price": "₹25 - ₹40", "availability": "Medium", "savings": "60%", "similarityScore": 100}
+    ],
+    "interactions": [
+      {"substance": "Methotrexate", "severity": "HIGH", "description": "Antibiotics can decrease the excretion of methotrexate, increasing risk of toxicity."},
+      {"substance": "Oral Contraceptives", "severity": "LOW", "description": "May slightly decrease the effectiveness of birth control pills."}
+    ],
+    "sideEffects": [
+      {"name": "Diarrhea", "frequency": "common"},
+      {"name": "Nausea / Vomiting", "frequency": "common"},
+      {"name": "Skin Rash", "frequency": "uncommon"}
+    ]
+  },
+  {
+    "name": "Metformin 500mg",
+    "description": "An oral diabetes medicine that helps control blood sugar levels, primarily used for people with type 2 diabetes.",
+    "activeIngredients": [
+      {"name": "Metformin Hydrochloride", "amount": "500mg"}
+    ],
+    "inactiveIngredients": ["Povidone", "Magnesium Stearate", "Hypromellose", "Polyethylene Glycol"],
+    "alternatives": [
+      {"name": "Glycomet 500mg", "type": "branded", "price": "₹15 - ₹22", "availability": "High", "savings": "10%", "similarityScore": 100},
+      {"name": "Obimet 500mg", "type": "branded", "price": "₹14 - ₹18", "availability": "High", "savings": "20%", "similarityScore": 100},
+      {"name": "Metformin Generic 500mg", "type": "generic", "price": "₹5 - ₹8", "availability": "High", "savings": "65%", "similarityScore": 100}
+    ],
+    "interactions": [
+      {"substance": "Iodinated Contrast Media", "severity": "HIGH", "description": "Must temporarily discontinue metformin prior to contrast imaging due to lactic acidosis risk."},
+      {"substance": "Alcohol", "severity": "HIGH", "description": "Significantly increases the risk of lactic acidosis."}
+    ],
+    "sideEffects": [
+      {"name": "Nausea / Diarrhea", "frequency": "common"},
+      {"name": "Abdominal Discomfort", "frequency": "common"},
+      {"name": "Metallic taste in mouth", "frequency": "uncommon"}
+    ]
+  },
+  {
+    "name": "Ibuprofen 400mg",
+    "description": "A nonsteroidal anti-inflammatory drug (NSAID) used for reducing hormones that cause pain and inflammation in the body.",
+    "activeIngredients": [
+      {"name": "Ibuprofen", "amount": "400mg"}
+    ],
+    "inactiveIngredients": ["Microcrystalline Cellulose", "Croscarmellose Sodium", "Silicon Dioxide", "Stearic Acid"],
+    "alternatives": [
+      {"name": "Brufen 400mg", "type": "branded", "price": "₹12 - ₹16", "availability": "High", "savings": "15%", "similarityScore": 100},
+      {"name": "Ibugesic 400mg", "type": "branded", "price": "₹10 - ₹14", "availability": "High", "savings": "30%", "similarityScore": 100},
+      {"name": "Ibuprofen Generic 400mg", "type": "generic", "price": "₹4 - ₹7", "availability": "High", "savings": "65%", "similarityScore": 100}
+    ],
+    "interactions": [
+      {"substance": "Aspirin / NSAIDs", "severity": "HIGH", "description": "Increases risk of gastrointestinal bleeding and ulcers."},
+      {"substance": "Antihypertensive drugs", "severity": "MEDIUM", "description": "NSAIDs may decrease the blood pressure lowering effect of diuretics and beta-blockers."}
+    ],
+    "sideEffects": [
+      {"name": "Stomach pain / Heartburn", "frequency": "common"},
+      {"name": "Dizziness / Headache", "frequency": "uncommon"},
+      {"name": "Gastrointestinal bleeding", "frequency": "rare"}
+    ]
+  }
+]
