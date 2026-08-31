@@ -3,6 +3,9 @@ import json
 import base64
 import io
 import sqlite3
+import csv
+import re
+import requests
 from datetime import datetime
 from PIL import Image
 import numpy as np
@@ -181,31 +184,56 @@ def save_medication_to_db(data: dict, tokens: list = None) -> dict:
     return data
 
 def seed_db():
+    # 1. Seed from medications_dataset.json
     dataset_file = "medications_dataset.json"
-    if not os.path.exists(dataset_file):
-        print(f"Dataset file {dataset_file} not found. Skipping seeding.")
-        return
-    
-    try:
-        conn = sqlite3.connect(DB_FILE)
-        cursor = conn.cursor()
-        
-        # Seed each medication if not already present by name
-        seeded_count = 0
-        with open(dataset_file, "r", encoding="utf-8") as f:
-            meds = json.load(f)
-        for med in meds:
-            name = med.get("name", "Unknown Medicine")
-            cursor.execute("SELECT COUNT(*) FROM medications WHERE name = ?", (name,))
-            if cursor.fetchone()[0] == 0:
-                # Save to database (save_medication_to_db opens its own connection and inserts)
-                save_medication_to_db(med, [name])
-                seeded_count += 1
-        conn.close()
-        if seeded_count > 0:
-            print(f"Successfully seeded {seeded_count} new medications.")
-    except Exception as e:
-        print("Error seeding database:", e)
+    if os.path.exists(dataset_file):
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            seeded_count = 0
+            with open(dataset_file, "r", encoding="utf-8") as f:
+                meds = json.load(f)
+            for med in meds:
+                name = med.get("name", "Unknown Medicine")
+                cursor.execute("SELECT COUNT(*) FROM medications WHERE name = ?", (name,))
+                if cursor.fetchone()[0] == 0:
+                    save_medication_to_db(med, [name])
+                    seeded_count += 1
+            conn.close()
+            if seeded_count > 0:
+                print(f"Successfully seeded {seeded_count} medications from JSON.")
+        except Exception as e:
+            print("Error seeding from JSON:", e)
+
+    # 2. Seed from medicine_compositions.csv
+    csv_file = "medicine_compositions.csv"
+    if os.path.exists(csv_file):
+        try:
+            conn = sqlite3.connect(DB_FILE)
+            cursor = conn.cursor()
+            seeded_count_csv = 0
+            with open(csv_file, "r", encoding="utf-8") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    name = row.get("name", "Unknown Medicine")
+                    cursor.execute("SELECT COUNT(*) FROM medications WHERE name = ?", (name,))
+                    if cursor.fetchone()[0] == 0:
+                        med_data = {
+                            "name": name,
+                            "description": row.get("description", ""),
+                            "activeIngredients": json.loads(row.get("active_ingredients", "[]")),
+                            "inactiveIngredients": json.loads(row.get("inactive_ingredients", "[]")),
+                            "alternatives": json.loads(row.get("alternatives", "[]")),
+                            "interactions": json.loads(row.get("interactions", "[]")),
+                            "sideEffects": json.loads(row.get("side_effects", "[]"))
+                        }
+                        save_medication_to_db(med_data, [name])
+                        seeded_count_csv += 1
+            conn.close()
+            if seeded_count_csv > 0:
+                print(f"Successfully seeded {seeded_count_csv} medications from CSV.")
+        except Exception as e:
+            print("Error seeding from CSV:", e)
 
 seed_db()
 
@@ -238,6 +266,29 @@ def preprocess_image_for_ocr(image_np: np.ndarray) -> list:
         print("Enhanced OCR pass error:", e)
 
     return tokens
+
+def search_web_composition(query: str) -> str:
+    """Searches the web for medicine composition/details to provide context to the LLM."""
+    search_query = f"{query} composition active ingredient salt uses"
+    url = "https://lite.duckduckgo.com/lite/"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    }
+    try:
+        r = requests.post(url, data={"q": search_query}, headers=headers, timeout=5)
+        if r.status_code == 200:
+            snippets = re.findall(r"<td[^>]*class='result-snippet'[^>]*>(.*?)</td>", r.text, re.DOTALL)
+            cleaned_snippets = []
+            for s in snippets[:5]:
+                clean = re.sub(r'<[^>]+>', '', s)
+                clean = clean.replace('&amp;', '&').replace('&quot;', '"').replace('&nbsp;', ' ').strip()
+                if len(clean) > 20:
+                    cleaned_snippets.append(clean)
+            if cleaned_snippets:
+                return "\n".join(cleaned_snippets)
+    except Exception as e:
+        print("Web search fallback error:", e)
+    return ""
 
 @app.post("/api/search")
 async def search_medication(req: SearchRequest):
@@ -286,11 +337,26 @@ async def search_medication(req: SearchRequest):
             return data
             
         conn.close()
-        print(f"Query '{req.query}' not found in local database. Fetching from Groq LLM API...")
+        print(f"Query '{req.query}' not found in local database. Performing web search fallback...")
+        
+        web_context = search_web_composition(req.query)
+        context_prompt = ""
+        if web_context:
+            print(f"Retrieved web context for query '{req.query}':\n{web_context}")
+            context_prompt = f"""
+            To assist you, here are verified real-world search results for '{req.query}':
+            ---
+            {web_context}
+            ---
+            Using this search context, identify the exact active chemical composition, brand, salts, dosages, and other facts. If there is a conflict, trust the search context over your internal knowledge.
+            """
+        else:
+            print(f"No web context found for query '{req.query}'. Falling back to LLM internal knowledge.")
         
         # 2. Fall back to Groq LLM if not found locally
         prompt = f"""
         You are a clinical pharmacist AI. Analyze the medication query '{req.query}'.
+        {context_prompt}
         Identify the exact active chemical molecule (salt), dosages, inactive excipients, brand/generic substitutes, drug interactions, and side effects.
         
         Return a strict, valid JSON object matching this schema:
