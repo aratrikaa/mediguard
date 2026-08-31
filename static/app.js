@@ -69,6 +69,40 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchHistory();
 
     // ----------------------------------------------------
+    // Theme Switcher Logic
+    // ----------------------------------------------------
+    const themeButtons = document.querySelectorAll('.theme-btn');
+    const savedTheme = localStorage.getItem('mediguard-theme') || 'dark';
+    
+    applyTheme(savedTheme);
+    
+    themeButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const theme = btn.getAttribute('data-theme');
+            applyTheme(theme);
+        });
+    });
+    
+    function applyTheme(theme) {
+        document.body.classList.remove('theme-light', 'theme-cyberpunk');
+        
+        if (theme !== 'dark') {
+            document.body.classList.add(`theme-${theme}`);
+        }
+        
+        themeButtons.forEach(btn => {
+            if (btn.getAttribute('data-theme') === theme) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+        
+        localStorage.setItem('mediguard-theme', theme);
+    }
+
+
+    // ----------------------------------------------------
     // Input Method Tab Switching
     // ----------------------------------------------------
     inputTabs.forEach(tab => {
