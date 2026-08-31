@@ -557,6 +557,11 @@ document.addEventListener('DOMContentLoaded', () => {
             
             chatHistory.push({ role: 'user', content: msg });
             chatHistory.push({ role: 'assistant', content: data.response });
+
+            if (data.switch_medication) {
+                displayMedication(data.switch_medication);
+                fetchHistory();
+            }
         } catch (err) {
             console.error(err);
             appendMessage('bot', 'Sorry, I encountered an error checking details. Please try again.');

@@ -477,6 +477,136 @@ async def scan_medication(req: ScanRequest):
 @app.post("/api/chat")
 async def chat_assistant(req: ChatRequest):
     try:
+        intent_prompt = f"""
+        You are an intent detection agent. The user is currently discussing this medication: '{req.context.get("name", "None")}'.
+        Analyze the user's latest message: "{req.message}"
+        Is the user asking to search, analyze, look up, or get details for a medication brand name or active ingredient (e.g. "Combiflam", "Aspirin", "Crocin Pain Relief")?
+        If they are asking about a specific drug name that is NOT exactly '{req.context.get("name", "None")}', output ONLY the name of that medication.
+        If they are just asking a general question, talking about the current medication '{req.context.get("name", "None")}', or not mentioning any new medication name, output "NO".
+        """
+        intent_res = client.chat.completions.create(
+            model=LLM_MODEL,
+            messages=[
+                {"role": "system", "content": "You are a precise intent detector. Always output only the requested string without formatting, punctuation, or preamble."},
+                {"role": "user", "content": intent_prompt}
+            ],
+            temperature=0.0
+        )
+        detected_med = intent_res.choices[0].message.content.strip().replace('"', '').replace("'", "")
+        
+        if detected_med != "NO" and len(detected_med) > 1:
+            print(f"Chat Agent detected new medication request: '{detected_med}'")
+            # 1. Try to find the medication in the local database first
+            query_str = detected_med.strip().lower()
+            conn = sqlite3.connect(DB_FILE)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT * FROM medications 
+                WHERE LOWER(name) LIKE ? 
+                   OR LOWER(active_ingredients) LIKE ? 
+                   OR LOWER(extracted_tokens) LIKE ?
+                LIMIT 1
+            """, (f"%{query_str}%", f"%{query_str}%", f"%{query_str}%"))
+            row = cursor.fetchone()
+            
+            med_profile = None
+            if row:
+                print(f"Chat Agent found match for '{detected_med}' in local database: {row['name']}")
+                extracted_tokens = []
+                if "extracted_tokens" in row.keys() and row["extracted_tokens"]:
+                    try:
+                        extracted_tokens = json.loads(row["extracted_tokens"])
+                    except Exception:
+                        pass
+                med_profile = {
+                    "id": row["id"],
+                    "name": row["name"],
+                    "description": row["description"],
+                    "activeIngredients": json.loads(row["active_ingredients"]),
+                    "inactiveIngredients": json.loads(row["inactive_ingredients"]),
+                    "alternatives": json.loads(row["alternatives"]),
+                    "interactions": json.loads(row["interactions"]),
+                    "sideEffects": json.loads(row["side_effects"]),
+                    "scan_date": row["scan_date"],
+                    "risk_level": row["risk_level"],
+                    "extractedTokens": extracted_tokens
+                }
+            conn.close()
+            
+            # If not found locally, run web search fallback and parse via LLM
+            if not med_profile:
+                print(f"Chat Agent: '{detected_med}' not found locally. Running web search fallback...")
+                web_context = search_web_composition(detected_med)
+                context_prompt = ""
+                if web_context:
+                    context_prompt = f"""
+                    To assist you, here are verified real-world search results for '{detected_med}':
+                    ---
+                    {web_context}
+                    ---
+                    Using this search context, identify the exact active chemical composition, brand, salts, dosages, and other facts. If there is a conflict, trust the search context over your internal knowledge.
+                    """
+                
+                profile_prompt = f"""
+                You are a clinical pharmacist AI. Analyze the medication query '{detected_med}'.
+                {context_prompt}
+                Identify the exact active chemical molecule (salt), dosages, inactive excipients, brand/generic substitutes, drug interactions, and side effects.
+                
+                Return a strict, valid JSON object matching this schema:
+                {{
+                    "name": "Full medicine brand name with dosage (e.g. Disprin 500mg)",
+                    "description": "Short clinical purpose & mechanism of action in plain English",
+                    "activeIngredients": [
+                        {{"name": "Active Chemical Molecule / Salt Name (e.g. Acetylsalicylic Acid)", "amount": "Dosage (e.g. 500mg)"}}
+                    ],
+                    "inactiveIngredients": ["Excipient 1", "Excipient 2", "Excipient 3"],
+                    "alternatives": [
+                        {{"name": "Substitute Name", "type": "generic or branded", "price": "Price range in Rupees (e.g. ₹20 - ₹45)", "availability": "High", "savings": "Percentage savings e.g. 45%", "similarityScore": 95}}
+                    ],
+                    "interactions": [
+                        {{"substance": "Substance / Drug Name", "severity": "HIGH or MEDIUM or LOW", "description": "Specific clinical risk"}}
+                    ],
+                    "sideEffects": [
+                        {{"name": "Side effect name", "frequency": "common or uncommon or rare"}}
+                    ]
+                }}
+
+                CRITICAL REQUIREMENT FOR PRICING:
+                - Output all alternative prices in Indian Rupees using the '₹' symbol (e.g. '₹15 - ₹30' or '₹40 - ₹80').
+                - NEVER use US Dollar signs ($).
+
+                Do NOT return empty fields. Return ONLY the raw JSON object.
+                """
+                
+                llm_response = client.chat.completions.create(
+                    model=LLM_MODEL,
+                    messages=[
+                        {"role": "system", "content": "You are a professional clinical pharmacist. Always output complete, high-quality, strict JSON without markdown formatting."},
+                        {"role": "user", "content": profile_prompt}
+                    ],
+                    temperature=0.1,
+                )
+                
+                try:
+                    data = parse_llm_json(llm_response.choices[0].message.content)
+                    med_profile = save_medication_to_db(data, [detected_med])
+                    print(f"Chat Agent: Saved parsed profile for '{detected_med}' to dataset.")
+                except Exception as e:
+                    print("Error parsing/saving profile in Chat Agent:", e)
+            
+            if med_profile:
+                bot_msg = f"I've searched for **{med_profile['name']}** and added it to the dataset! Here are the details:\n\n"
+                bot_msg += f"**Description**: {med_profile['description']}\n\n"
+                bot_msg += "**Active Ingredients**: " + ", ".join([f"{act['name']} ({act.get('amount', 'N/A')})" for act in med_profile['activeIngredients']]) + "\n"
+                bot_msg += "**Risk Level**: " + med_profile['risk_level'].upper() + "\n\n"
+                bot_msg += "I'm updating your main dashboard view to display this medication's details."
+                
+                return {
+                    "response": bot_msg,
+                    "switch_medication": med_profile
+                }
+        
         context_str = json.dumps(req.context, indent=2)
         
         messages = [
@@ -501,6 +631,7 @@ async def chat_assistant(req: ChatRequest):
         
         return {"response": response.choices[0].message.content}
     except Exception as e:
+        print("Chat error:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/history")
