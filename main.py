@@ -10,7 +10,6 @@ from datetime import datetime
 from PIL import Image
 import numpy as np
 import cv2
-import easyocr
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -28,6 +27,7 @@ if not GROQ_API_KEY:
 
 # Primary LLM model
 LLM_MODEL = "openai/gpt-oss-20b"
+VISION_MODEL = "llama-3.2-11b-vision-preview"
 
 # Resilient Groq client helper
 def get_groq_client():
@@ -41,10 +41,21 @@ def get_groq_client():
 
 client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
-# Initialize EasyOCR reader on startup
-print("Initializing EasyOCR neural engine...")
-ocr_reader = easyocr.Reader(['en'], gpu=False)
-print("EasyOCR neural engine ready!")
+# Lazy-loaded EasyOCR reader (conserves RAM on low-memory cloud hosts)
+ocr_reader = None
+
+def get_ocr_reader():
+    global ocr_reader
+    if ocr_reader is None:
+        try:
+            import easyocr
+            print("Lazy-loading EasyOCR neural engine...")
+            ocr_reader = easyocr.Reader(['en'], gpu=False, verbose=False)
+            print("EasyOCR engine loaded.")
+        except Exception as e:
+            print("EasyOCR initialization note:", e)
+            ocr_reader = False
+    return ocr_reader if ocr_reader is not False else None
 
 app = FastAPI(title="MediGuard API", version="1.0.0")
 
@@ -250,10 +261,13 @@ seed_db()
 def preprocess_image_for_ocr(image_np: np.ndarray) -> list:
     """Runs OCR on both original and contrast-enhanced variations to maximize token detection."""
     tokens = []
+    reader = get_ocr_reader()
+    if not reader:
+        return tokens
     
     # 1. OCR on original
     try:
-        res1 = ocr_reader.readtext(image_np)
+        res1 = reader.readtext(image_np)
         for bbox, text, prob in res1:
             t = text.strip()
             if len(t) > 1 and t not in tokens:
@@ -266,7 +280,7 @@ def preprocess_image_for_ocr(image_np: np.ndarray) -> list:
         gray = cv2.cvtColor(image_np, cv2.COLOR_RGB2GRAY)
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8,8))
         enhanced = clahe.apply(gray)
-        res2 = ocr_reader.readtext(enhanced)
+        res2 = reader.readtext(enhanced)
         for bbox, text, prob in res2:
             t = text.strip()
             if len(t) > 1 and t not in tokens:
@@ -411,13 +425,75 @@ async def search_medication(req: SearchRequest):
         print("Search error:", e)
         raise HTTPException(status_code=500, detail=str(e))
 
+def scan_with_groq_vision(image_base64: str) -> dict:
+    """Uses Groq multimodal vision model for lightning-fast, zero-memory packaging OCR & clinical analysis."""
+    groq_client = get_groq_client()
+    vision_prompt = """You are an expert clinical pharmacist AI. Analyze this medication packaging image.
+Identify the exact brand name, active chemical molecule/salt names, strengths/dosages, inactive excipients, generic/branded alternatives with prices in ₹ INR, drug interactions, and side effects.
+
+Return a strict, valid JSON object matching this schema:
+{
+    "name": "Identified Medicine Name & Dosage (e.g. Augmentin 625 Duo Tablet)",
+    "description": "Short clinical purpose & mechanism of action in plain English",
+    "activeIngredients": [
+        {"name": "Active Salt / Molecule Name", "amount": "Strength (e.g. 500mg)"}
+    ],
+    "inactiveIngredients": ["Excipient 1", "Binder 2", "Coating 3"],
+    "alternatives": [
+        {"name": "Substitute Name", "type": "generic or branded", "price": "₹30 - ₹70", "availability": "High", "savings": "40%", "similarityScore": 95}
+    ],
+    "interactions": [
+        {"substance": "Drug / Food / Substance", "severity": "HIGH or MEDIUM or LOW", "description": "Specific clinical interaction"}
+    ],
+    "sideEffects": [
+        {"name": "Side effect name", "frequency": "common or uncommon or rare"}
+    ]
+}
+
+CRITICAL: Return ONLY valid raw JSON without markdown fencing or commentary. Prices must be in ₹ INR."""
+
+    messages = [
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": vision_prompt},
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{image_base64}"
+                    }
+                }
+            ]
+        }
+    ]
+    
+    response = groq_client.chat.completions.create(
+        model=VISION_MODEL,
+        messages=messages,
+        temperature=0.1,
+    )
+    result_text = response.choices[0].message.content
+    return parse_llm_json(result_text)
+
 @app.post("/api/scan")
 async def scan_medication(req: ScanRequest):
     try:
         image_data = req.image
         if "," in image_data:
             image_data = image_data.split(",")[1]
-            
+
+        # 1. Primary: Ultra-fast Groq Cloud Vision (0 MB server RAM usage)
+        try:
+            print("Running cloud Vision OCR via Groq...")
+            vision_result = scan_with_groq_vision(image_data)
+            if vision_result and vision_result.get("name"):
+                saved_data = save_medication_to_db(vision_result, [vision_result.get("name")])
+                print(f"Cloud Vision OCR succeeded for: {vision_result.get('name')}")
+                return saved_data
+        except Exception as v_err:
+            print("Cloud Vision fallback to local OCR:", v_err)
+
+        # 2. Fallback: Local OCR + LLM Pipeline
         image_bytes = base64.b64decode(image_data)
         image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
         image_np = np.array(image)
