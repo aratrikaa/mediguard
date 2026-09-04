@@ -1,6 +1,11 @@
 # MediGuard 🛡️💊
 > **"Verify Before You Swallow"** — An AI-powered medication verification dashboard that scans medicine packaging labels, extracts chemical salts/compositions via OCR, checks dangerous drug/substance interactions, and suggests bioequivalent cheaper alternatives.
 
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-Render-46E3B7?style=for-the-badge&logo=render&logoColor=white)](https://mediguard-rztd.onrender.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
+
+🔗 **Live Application URL**: [https://mediguard-rztd.onrender.com](https://mediguard-rztd.onrender.com/)
+
 ---
 
 ## ✨ Features
