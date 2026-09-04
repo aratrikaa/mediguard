@@ -8,6 +8,18 @@
 
 ---
 
+## 📖 About MediGuard
+
+**MediGuard** is a patient-first digital health utility designed to eliminate medication confusion, prevent adverse drug-drug interactions, and combat high healthcare costs. By combining **Optical Character Recognition (OCR)** with **Clinical AI reasoning (Groq)**, MediGuard allows patients to photograph any medication strip or box and instantly receive:
+- **Active Chemical Molecules**: Clear disambiguation of active salts, dosages, and inactive excipients.
+- **Real-time Interaction Warnings**: Multi-tier severity alerts for conflicting medications, food, and alcohol.
+- **Bioequivalent Substitutes**: Generic and branded alternatives in Indian Rupees (₹) with up to 70% cost savings.
+- **Clinical AI Pharmacist**: Built-in interactive clinical chatbot for continuous Q&A.
+
+Try it live here 👉 **[mediguard-rztd.onrender.com](https://mediguard-rztd.onrender.com/)**
+
+---
+
 ## ✨ Features
 
 - 📸 **Optical Character Recognition (OCR)**: Extracts text tokens from medicine boxes with multi-pass OpenCV contrast enhancement and EasyOCR.
