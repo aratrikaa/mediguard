@@ -24,13 +24,22 @@ load_dotenv()
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 if not GROQ_API_KEY:
-    raise RuntimeError("GROQ_API_KEY not found in environment variables.")
+    print("WARNING: GROQ_API_KEY not found in environment variables. Set GROQ_API_KEY in your cloud deployment dashboard.")
 
 # Primary LLM model
 LLM_MODEL = "openai/gpt-oss-20b"
 
-# Initialize Groq client
-client = Groq(api_key=GROQ_API_KEY)
+# Resilient Groq client helper
+def get_groq_client():
+    key = os.getenv("GROQ_API_KEY")
+    if not key:
+        raise HTTPException(
+            status_code=500,
+            detail="GROQ_API_KEY is missing. Please set GROQ_API_KEY in your Render environment variables."
+        )
+    return Groq(api_key=key)
+
+client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
 # Initialize EasyOCR reader on startup
 print("Initializing EasyOCR neural engine...")
@@ -385,7 +394,7 @@ async def search_medication(req: SearchRequest):
         Do NOT return empty fields. Return ONLY the raw JSON object.
         """
         
-        response = client.chat.completions.create(
+        response = (client or get_groq_client()).chat.completions.create(
             model=LLM_MODEL,
             messages=[
                 {"role": "system", "content": "You are a professional clinical pharmacist and database expert. Always output complete, high-quality, strict JSON without markdown formatting."},
@@ -457,7 +466,7 @@ async def scan_medication(req: ScanRequest):
         Do NOT return empty fields. Return ONLY the raw JSON object.
         """
         
-        response = client.chat.completions.create(
+        response = (client or get_groq_client()).chat.completions.create(
             model=LLM_MODEL,
             messages=[
                 {"role": "system", "content": "You are a clinical pharmacist AI that interprets noisy OCR text from medicine boxes into structured medical JSON."},
@@ -484,7 +493,7 @@ async def chat_assistant(req: ChatRequest):
         If they are asking about a specific drug name that is NOT exactly '{req.context.get("name", "None")}', output ONLY the name of that medication.
         If they are just asking a general question, talking about the current medication '{req.context.get("name", "None")}', or not mentioning any new medication name, output "NO".
         """
-        intent_res = client.chat.completions.create(
+        intent_res = (client or get_groq_client()).chat.completions.create(
             model=LLM_MODEL,
             messages=[
                 {"role": "system", "content": "You are a precise intent detector. Always output only the requested string without formatting, punctuation, or preamble."},
@@ -579,7 +588,7 @@ async def chat_assistant(req: ChatRequest):
                 Do NOT return empty fields. Return ONLY the raw JSON object.
                 """
                 
-                llm_response = client.chat.completions.create(
+                llm_response = (client or get_groq_client()).chat.completions.create(
                     model=LLM_MODEL,
                     messages=[
                         {"role": "system", "content": "You are a professional clinical pharmacist. Always output complete, high-quality, strict JSON without markdown formatting."},
@@ -623,7 +632,7 @@ async def chat_assistant(req: ChatRequest):
         # Add user's latest query
         messages.append({"role": "user", "content": req.message})
         
-        response = client.chat.completions.create(
+        response = (client or get_groq_client()).chat.completions.create(
             model=LLM_MODEL,
             messages=messages,
             temperature=0.5,
@@ -692,3 +701,8 @@ async def read_root():
             return HTMLResponse(content=f.read())
     except FileNotFoundError:
         return HTMLResponse(content="<h1>MediGuard Dashboard: Static files not yet created. Check back in a moment!</h1>")
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

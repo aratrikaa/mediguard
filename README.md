@@ -42,7 +42,7 @@ Create a `.env` file in the root directory:
 GROQ_API_KEY=your_groq_api_key_here
 ```
 
-### 4. Run the application
+### 4. Run the application locally
 ```bash
 python -m uvicorn main:app --port 8000 --reload
 ```
@@ -51,3 +51,33 @@ Open your browser and navigate to:
 ```
 http://127.0.0.1:8000
 ```
+
+---
+
+## 🌐 Deploy to Render
+
+### Option A: 1-Click / Blueprint Deployment (Recommended)
+1. Push your latest code to your GitHub repository:
+   ```bash
+   git add .
+   git commit -m "Add Render deployment config"
+   git push origin main
+   ```
+2. Go to [Render Dashboard](https://dashboard.render.com/) and click **New +** → **Blueprint**.
+3. Connect your `mediguard` repository.
+4. Render will automatically detect `render.yaml` and configure the service as a Docker container.
+5. In the **Environment Variables** prompt, enter your `GROQ_API_KEY`.
+6. Click **Apply** to deploy!
+
+### Option B: Manual Web Service on Render
+1. In [Render Dashboard](https://dashboard.render.com/), click **New +** → **Web Service**.
+2. Connect `https://github.com/aratrikaa/mediguard`.
+3. Choose **Docker** environment (or **Python 3**).
+   - If choosing **Docker**: Render uses the included [Dockerfile](file:///Dockerfile).
+   - If choosing **Python 3**:
+     - **Build Command**: `pip install -r requirements.txt`
+     - **Start Command**: `uvicorn main:app --host 0.0.0.0 --port $PORT`
+4. Under **Environment Variables**, add:
+   - `GROQ_API_KEY`: `<Your Groq API Key>`
+5. Click **Deploy Web Service**.
+

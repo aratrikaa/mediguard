@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: mediguard
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: PORT
+        value: 10000
+    healthCheckPath: /
