@@ -108,5 +108,31 @@
       {"name": "Dizziness / Headache", "frequency": "uncommon"},
       {"name": "Gastrointestinal bleeding", "frequency": "rare"}
     ]
+  },
+  {
+    "name": "Anafortan",
+    "description": "An antispasmodic and analgesic combination medication used to relieve spasmodic pain and discomfort associated with stomach and intestinal colic, biliary colic, renal colic, and dysmenorrhea (menstrual cramps).",
+    "activeIngredients": [
+      {"name": "Camylofin Dihydrochloride", "amount": "25mg"},
+      {"name": "Paracetamol", "amount": "300mg"}
+    ],
+    "inactiveIngredients": ["Microcrystalline Cellulose", "Povidone", "Magnesium Stearate", "Talc", "Sodium Starch Glycolate"],
+    "alternatives": [
+      {"name": "Cyclopam Tablet", "type": "branded", "price": "₹35 - ₹55", "availability": "High", "savings": "20%", "similarityScore": 95},
+      {"name": "Spasmonil Plus", "type": "branded", "price": "₹30 - ₹45", "availability": "High", "savings": "30%", "similarityScore": 95},
+      {"name": "Baralgan M", "type": "branded", "price": "₹40 - ₹60", "availability": "High", "savings": "15%", "similarityScore": 100}
+    ],
+    "interactions": [
+      {"substance": "Alcohol", "severity": "HIGH", "description": "Combined use with alcohol increases risk of severe liver damage and central nervous system depression."},
+      {"substance": "Anticholinergics / Amantadine", "severity": "MEDIUM", "description": "May amplify anticholinergic effects like dry mouth, constipation, and blurred vision."},
+      {"substance": "Warfarin", "severity": "MEDIUM", "description": "Regular paracetamol usage may enhance the anticoagulant effect of blood thinners."}
+    ],
+    "sideEffects": [
+      {"name": "Dry Mouth", "frequency": "common"},
+      {"name": "Dizziness / Drowsiness", "frequency": "common"},
+      {"name": "Nausea", "frequency": "uncommon"},
+      {"name": "Blurred Vision", "frequency": "uncommon"},
+      {"name": "Allergic Skin Rash", "frequency": "rare"}
+    ]
   }
 ]

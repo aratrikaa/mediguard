@@ -244,6 +244,20 @@ document.addEventListener('DOMContentLoaded', () => {
         if (e.key === 'Enter') performManualSearch();
     });
 
+    function parseBackendError(err) {
+        let msg = err.message || String(err);
+        try {
+            const parsed = JSON.parse(msg);
+            if (parsed.detail) {
+                if (typeof parsed.detail === 'object') {
+                    return parsed.detail.message || JSON.stringify(parsed.detail);
+                }
+                return parsed.detail;
+            }
+        } catch (e) {}
+        return msg;
+    }
+
     async function performManualSearch() {
         const query = manualSearchInput.value.trim();
         if (!query) return;
@@ -262,7 +276,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchHistory();
         } catch (err) {
             console.error(err);
-            alert(`Error analyzing medication: ${err.message || err}`);
+            alert(`MediGuard Notice: ${parseBackendError(err)}`);
         } finally {
             hideLoading();
         }
@@ -287,7 +301,7 @@ document.addEventListener('DOMContentLoaded', () => {
             fetchHistory();
         } catch (err) {
             console.error(err);
-            alert(`Error scanning medication label: ${err.message || err}`);
+            alert(`MediGuard Notice: ${parseBackendError(err)}`);
         } finally {
             hideLoading();
             scanLaser.classList.remove('scanning');
